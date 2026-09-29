@@ -796,6 +796,54 @@ inverted ProbCut window in the search. So the order is fixed and unglamorous:
 `SPECULATIVE_PRUNING` is now overridable at build time so that step 2 is a compile
 flag and not a source edit, and the A/B binary is built under a different name so
 a running match is never disturbed mid-measurement.
+---
+
+## Game phase was read off the mover
+
+Written into the tool as `python tools/evalsym.py --sweep`, and it found this on
+its first run.
+
+The invariant is the thing I had to get right, and I got it wrong twice before it
+was worth encoding:
+
+> `evaluate()` is from the **side to move's** point of view and tempo is credited
+> to whoever is to move, so for one board
+> `eval(w to move) + eval(b to move) == 2 * tempo` — 28.
+
+The two values must **sum** to 28. They must not be equal to each other: a
+position where White is a queen down reads about −1000 for White and +1000 for
+Black, and both are right. My first hand-written version differenced them, printed
+**"14 of 16 ASYMMETRIC"** in alarming type, and was simply wrong about the
+invariant. Six of sixteen, not fourteen, are actually broken, and the difference
+between the two numbers was entirely my own misunderstanding.
+
+The defect underneath:
+
+    const int phase = std::min(a.phase, 24);      // a = sideScore(MOVER)
+
+Game phase is a property of the position. Reading the mover's phase is harmless
+while both sides have comparable material — which is why every symmetry check run
+before this one passed — and wrong the moment they do not. In K against K+Q, White
+to move scored phase 0 and so was given **pure endgame weights**, while Black to
+move scored phase 8 and got a third of the middlegame table back. Same board, same
+pieces, different evaluation, 39cp apart, decided entirely by whose turn it was.
+
+    const int phase = std::min((a.phase + b.phase) / 2, PHASE_MAX);
+
+Averaging makes the phase a function of the board, which is the only property the
+taper needs. Before: 3 of 15 positions outside tolerance. After: **0 of 15.**
+
+### The check was then run against the broken binary
+
+A regression test that has never failed is decoration. The sweep was pointed at
+the pre-fix binary and obliged to fail:
+
+    FAIL  -950   1017  err  +39   8/8/8/8/8/5k2/6q1/7K
+    FAIL  -591    612  err  - 7   4k3/8/8/8/8/8/4r3/4K3
+    FAIL  -276    311  err  + 7   8/8/1k6/2b5/2pP4/8/5K2/8
+
+Exactly the three lopsided positions, and nothing else. It has teeth, and it now
+cannot be silently satisfied by a symmetric middlegame position.
 
 ## The search: aspiration windows were preventing measurement
 

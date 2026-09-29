@@ -80,10 +80,92 @@ class Eng:
             self.p.kill()
 
 
+# ---------------------------------------------------------------------------
+# Sweep mode
+# ---------------------------------------------------------------------------
+#
+# THE INVARIANT, which I have now got wrong twice:
+#
+#   evaluate() is from the SIDE TO MOVE's point of view, and tempo is credited to
+#   whoever is to move. So for one board:
+#
+#       eval(w to move) + eval(b to move)  ==  2 * tempo        (28 by default)
+#
+# The two values must SUM to 2*tempo. They must NOT be equal to each other - a
+# position where White is a queen down reads about -1000 for White and +1000 for
+# Black, and both are correct. Differencing them flags almost every real position,
+# which is exactly what happened when this check was first written by hand.
+#
+# Noise is +/-3cp per evaluation, so +/-6 is the slack before a discrepancy is
+# real. Anything larger is a term being computed for one colour only, or - the
+# defect this caught - a position-dependent quantity being read off the mover.
+
+SWEEP = [
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR",          # symmetric start
+    "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR",      # 1.e4 c5
+    "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R",  # italian
+    "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8",                      # rook endgame
+    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R",   # kiwipete
+    "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1",   # promotions
+    "n1n5/PPPk4/8/8/8/8/4Kppp/5N1N",                        # promotion race
+    "3rkr2/8/8/8/8/8/3RKR2/8",                              # rooks and king only
+    # --- lopsided: the two sides have very different material, which is where a
+    # --- position-dependent quantity read off the mover shows up.
+    "8/8/8/8/8/5k2/6q1/7K",                                 # K vs KQ  (was 39cp)
+    "4k3/8/8/8/8/8/4r3/4K3",                                # K+R vs K
+    "8/8/1k6/2b5/2pP4/8/5K2/8",                             # opposite bishops
+    "8/2p5/8/1P6/8/8/8/k1K5",                               # opposite pawns
+    "8/1P6/8/8/8/8/K6k/8",                                  # pawn about to promote
+    "4k3/8/8/2pP4/8/8/8/4K3",                               # blocked pawns
+    "4k3/8/8/8/8/8/4P3/4K3",                                # K+P vs K
+]
+
+TEMPO_EXPECTED = 28   # 2 * tempo_bonus; must match weights.h
+TOLERANCE = 6         # noise is +/-3 per evaluation
+
+
+def sweep(aurora: str = str(AURORA)) -> int:
+    exe = Path(aurora)
+    if not exe.exists():
+        print(f"missing {exe}", file=sys.stderr)
+        return 2
+
+    def ev(board: str, side: str) -> int:
+        proc = subprocess.run([str(exe), "eval", f"{board} {side} - - 0 1"],
+                              capture_output=True, text=True, timeout=120)
+        return int(proc.stdout.strip())
+
+    print("Colour-symmetry sweep")
+    print(f"invariant: eval(w to move) + eval(b to move) == {TEMPO_EXPECTED} "
+          f"+/-{TOLERANCE}\n")
+    failures = 0
+    for board in SWEEP:
+        w, b = ev(board, "w"), ev(board, "b")
+        err = w + b - TEMPO_EXPECTED
+        bad = abs(err) > TOLERANCE
+        failures += bool(bad)
+        print(f"  {'FAIL' if bad else 'OK  '} {w:>6} {b:>6}  err {err:>+4}"
+              f"{'   <-- a term depends on the mover, not the position' if bad else ''}"
+              f"   {board}")
+
+    print()
+    if failures:
+        print(f"{failures} position(s) disagree. A position evaluated twice, with")
+        print("different sides to move, must not change - unless something in the")
+        print("taper or a term is being read off the mover instead of the position.")
+    else:
+        print("all positions symmetric")
+    return 1 if failures else 0
+
+
 def main() -> int:
     if not AURORA.exists():
         print(f"missing {AURORA}", file=sys.stderr)
         return 2
+
+    if "--sweep" in sys.argv:
+        i = sys.argv.index("--sweep")
+        return sweep(sys.argv[i + 1] if len(sys.argv) > i + 1 else str(AURORA))
 
     eng = Eng()
     try:

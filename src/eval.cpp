@@ -580,7 +580,21 @@ Value Eval::evaluate(const Position& pos) {
 
     int mg = a.mg - b.mg;
     int eg = a.eg - b.eg;
-    const int phase = std::min(a.phase, 24);
+
+    // Game phase belongs to the *position*, not to the side to move.
+    //
+    // This read the mover's phase alone, which is fine only while both sides
+    // have comparable material. In a lopsided position the two phases diverge
+    // and the same board was tapered differently depending on whose turn it was:
+    // K against K+Q, White to move, got phase 0 and therefore pure endgame
+    // weights, while Black to move got phase 8 and a third of the middlegame
+    // table. The two evaluations of one board then disagreed by 39cp, found by
+    // sweeping a set of lopsided positions and checking that the score with
+    // each side to move *sums* to 2*tempo.
+    //
+    // Averaging the two sides makes the phase identical for a given board no
+    // matter who is to move, which is the property the taper actually needs.
+    const int phase = std::min((a.phase + b.phase) / 2, PHASE_MAX);
 
     // ---- tempo ----
     // Applied *after* the taper, not before it. Adding it to the middlegame
