@@ -1,0 +1,17 @@
+{
+  "aurora": "Aurora",
+  "opponent": "Opponent",
+  "skill": null,
+  "tc": "10+0.1",
+  "depth": null,
+  "nodes": null,
+  "movetime": null,
+  "wins": 0,
+  "draws": 1,
+  "losses": 19,
+  "score": 0.025,
+  "elo_diff": -636.4258428105996,
+  "elo_stderr": 248.80379056333433,
+  "verdict": "NOT STRICTLY STRONGER",
+  "elapsed_s": 386.5660524368286
+}

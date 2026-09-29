@@ -844,6 +844,62 @@ the pre-fix binary and obliged to fail:
 
 Exactly the three lopsided positions, and nothing else. It has teeth, and it now
 cannot be silently satisfied by a symmetric middlegame position.
+---
+
+## The pruning A/B: speed did not become strength
+
+All speculative pruning re-enabled, same seed and same opening book as the
+baseline, 20 games each at 10+0.1:
+
+    A  pruning OFF   0 wins,  3 draws, 17 losses   score  7.50%   -436 +/- 148
+    B  pruning ON    0 wins,  1 draw,  19 losses   score  2.50%   -636 +/- 249
+
+I expected this to be the single biggest win available, and it is the opposite.
+Depth bought nothing: 10-minute depth-10 searches, all the standard prunings, and
+the same result every game.
+
+### Read the statistics before the story
+
+The intervals overlap heavily (A -725..-147, B -1124..-149) and there were only
+four draws between the two arms. Both engines won zero games, so the whole
+comparison rests on 3 draws against 1: under a null of equal strength, seeing a
+3-1 split has probability about 0.31. **The difference is not significant.**
+
+So the claim is not "pruning is worse". It is "pruning is worth nothing measurable
+here", and the point estimate happens to favour leaving it off. Which is what
+stays.
+
+### Why this is the most useful result of the session
+
+Not the 200 Elo - the redirect is the value. If the evaluation is the bottleneck,
+then searching deeper does not find better moves, it finds *more bad moves with
+more confidence*. Depth is a multiplier on the quality of the thing being
+multiplied. A 1000-Elo evaluation error is not corrected by looking at it from
+eight plies deeper; it is confirmed from eight plies deeper.
+
+That inverts the priority I had been working to. I had been treating search speed
+as the bottleneck, and the evidence says the evaluation is. Every hour spent
+buying depth on a hand-set, untuned evaluation is an hour spent making the engine
+confidently wrong.
+
+This is also the shape of the earlier qsearch and ProbCut bugs: both returned
+values that were not evaluations, and both were found by asking whether a score
+was *true*, never by asking whether it was *fast*. The same question applies one
+level up, to the evaluation itself.
+
+### The move, and why it is not a guess
+
+Stockfish is on this machine. That makes the next step measurable rather than
+intuitive: score a set of positions with both engines and rank by disagreement.
+Large disagreements are specific, nameable defects, found by the reference rather
+than by my reasoning - which, given how often my reasoning about what a number
+"should" be has turned out to be the thing that was wrong, is the only kind of
+input I should still be trusting.
+
+The positions should come from games Aurora actually lost, which is what
+`match.py --pgn` was added for. Otherwise the disagreement list will describe
+positions that do not occur in Aurora's games, which is the same mistake as tuning
+on a random position set.
 
 ## The search: aspiration windows were preventing measurement
 

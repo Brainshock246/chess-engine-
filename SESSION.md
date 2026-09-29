@@ -124,13 +124,14 @@ killers and history.
 
 ## Next
 
-1. **Baseline match vs Stockfish 19** — running, 20 games at 10+0.1. This is the
-   first honest number and everything after it is measured against it.
-2. **Re-enable each speculative feature one at a time**, keeping only those that
-   improve games. Note the cost of having them all off: `go depth 10` takes ~10
-   minutes, against 164ms at depth 8 when LMR was on. Speed is the next real
-   problem, and it must be bought back with games rather than with optimism.
-3. **Measure NOISE and SPARK individually.** They are implemented, isolated and
-   currently at defaults nobody has justified. `tools/evalsym.py` plus `match.py`
-   give the A/B.
-4. **Publish.** Repo exists; `gh` is not installed and needs setting up.
+1. **Use Stockfish as a teacher for the evaluation.** Score positions from games
+   Aurora actually lost with both engines and rank by disagreement; the worst
+   offenders are specific, nameable defects. This is the redirect the A/B forced —
+   depth bought nothing, so the evaluation is the bottleneck. Positions must come
+   from real losses (`match.py --pgn`), not a random set.
+2. **Fix eval terms in disagreement order**, re-running `evalsym.py --sweep` and
+   `tools/scores.py` after each, then re-matching.
+3. **Measure NOISE and SPARK individually** once there is an eval worth measuring
+   them against. They are implemented and isolated at defaults nobody has
+   justified.
+4. **Publish.** `gh` is installed; `gh auth login` is the last step.

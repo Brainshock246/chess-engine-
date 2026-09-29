@@ -10,10 +10,24 @@ against Stockfish and to be measured honestly against it.
 | move generation | **verified** — 6 positions, perft to depth 6 (119,060,324 nodes from the start position) |
 | make/unmake, legality | **verified** — round-trip FEN check on every legal move in six positions |
 | UCI protocol | **working** — accepts `position` (fen, startpos, moves), searches, emits `bestmove` |
-| evaluation | **symmetric and sane** — verified by a per-section colour audit; queen ≈ +995, rook ≈ +529 |
-| search | **works** — every root move is searched; the score converges with no aspiration thrash |
-| tactics | `tools/tactics.py` is the suite; writing it is what exposed that the engine had not been searching at all |
-| strength | **unmeasured** — no match has yet been played |
+| time management | **fixed** — `movestogo` honoured, budget computed for the side to move, verified colour-symmetric |
+| evaluation | **symmetric** — `evalsym.py --sweep` passes on 15 positions including lopsided ones; queen ≈ +995, rook ≈ +529 |
+| search | **works** — every root move searched, scores stable across depth, no sign inversions |
+| tactics | `tools/tactics.py` 7 passed / 0 failed; `tools/scores.py` passes on both binaries |
+| **strength** | **0 wins** in 40 games vs Stockfish 19. Baseline (pruning off): 0-3-17, score 7.5%, −436 ± 148 Elo. Pruning on: 0-1-19, 2.5%, −636 ± 249 — not significantly different |
+| publish | repo initialised, `gh` installed, awaiting `gh auth login` |
+
+**On strength.** Aurora is roughly 500 Elo below Stockfish 19, and the readme says
+so plainly. Everything above it in the table means the engine is *correct*, not
+that it is *strong*.
+
+The most useful measurement here is a negative one. Turning on every standard
+speed feature — null move, LMR, futility, ProbCut, singular extensions — changed
+nothing measurable (0-3-17 against 0-1-19; four draws between the arms, p ≈ 0.31).
+Depth did not buy strength. That is the expected result when the evaluation is the
+bottleneck, and it redirects the remaining work away from speed and toward the
+evaluation, measured against Stockfish as a reference rather than against my own
+intuition. See `RESULTS.md`.
 
 `RESULTS.md` is the real document: every change, the measurement that justified
 it, and the bugs found along the way.
