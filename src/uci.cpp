@@ -197,7 +197,7 @@ void UCI::loop(int argc, char** argv) {
 
     if (argc > 1 && std::string(argv[1]) == "bench") { return; }
 
-    std::cout << "Aurora 1.0 by the Aurora project" << std::endl;
+    std::cout << "Chess Engine 1.0" << std::endl;
     std::cout << "Features: NOSTOE" << std::endl;
 
     while (std::getline(std::cin, line)) {
@@ -206,8 +206,8 @@ void UCI::loop(int argc, char** argv) {
         if (token.empty()) continue;
 
         if (token == "uci") {
-            std::cout << "id name Aurora 1.0" << std::endl;
-            std::cout << "id author Aurora project" << std::endl;
+            std::cout << "id name Chess Engine 1.0" << std::endl;
+            std::cout << "id author Chess Engine" << std::endl;
             std::cout << "option name Hash type spin default 64 min 1 max 65536" << std::endl;
             std::cout << "option name Threads type spin default 1 min 1 max 512" << std::endl;
             std::cout << "option name MultiPV type spin default 1 min 1 max 256" << std::endl;

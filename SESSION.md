@@ -1,4 +1,9 @@
-# Aurora — session log
+# Chess Engine — session log
+
+> **Note on the name.** The engine was called *Aurora* while it was being built;
+> the project is published as **Chess Engine**. Historical entries below use the
+> old name, and the internal C++ namespace and the `--aurora` flag in `tools/`
+> still carry it.
 
 A running record of what was done, what was measured, and what is left. Written as
 work happened, not reconstructed afterwards, so the mistakes stay visible.

@@ -1,4 +1,4 @@
-# Aurora
+# Chess Engine
 
 A chess engine written from scratch in C++20, built to play continuous games
 against Stockfish and to be measured honestly against it.

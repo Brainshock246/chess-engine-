@@ -1,4 +1,9 @@
-# Aurora — results log
+# Chess Engine — results log
+
+> **Note on the name.** The engine was called *Aurora* while it was being built;
+> the project is published as **Chess Engine**. Historical entries below use the
+> old name, and the internal C++ namespace and the `--aurora` flag in `tools/`
+> still carry it.
 
 Every change is recorded here with the measurement that justified it. A change
 without a number next to it is a guess.
