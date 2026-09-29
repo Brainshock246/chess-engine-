@@ -669,6 +669,133 @@ instrument: stop testing the position that revealed the symptom, and test the
 though I have" to "the threshold is 5, and exactly one constant equals 5" was a
 single step once the reproduction was minimal. Every previous step had been
 reasoning from a position too rich to reason from.
+---
+
+## Time management, and a claim I had to withdraw
+
+The first match ran two games and drew both, in 0.3 minutes, at a 4-second base
+time. That is impossible if the engine is using its clock: 0.3 minutes for two
+games of a 4s game means almost no time per move.
+
+I measured a single `go wtime 4000 btime 4000 winc 50 binc 50`, got 306ms of wall
+time, and reported:
+
+> "Aurora ignores the clock."
+
+**That was wrong, and I should have read the allocation code before saying it.** The
+allocation was:
+
+    int movesToGo = 30;                                        // hard-coded
+    allotted = limits.time[us] / movesToGo + limits.inc[us] / 2;
+    allotted = std::min(allotted, limits.time[us] * 45 / 100);
+
+So 4000/30 + 25 = 158ms per move, and 158 x 32 = 5.1s - approximately correct for a
+four-second game. The 45% cap below it was never the binding constraint, so it
+never looked wrong either. Aurora was using its clock roughly as intended. "4% of
+the time given" was arithmetically true and completely beside the point: you are
+not entitled to spend four seconds on one move of a four-second game.
+
+The same sentence appears in `SESSION.md`. It is corrected here rather than quietly
+amended, because the failure is the pattern, not the number.
+
+### What was actually broken
+
+Two real defects, neither of which a single White-to-move test can see:
+
+1. **`movestogo` was parsed into a discarded variable.**
+
+       else if (token == "movestogo") is >> token;   // ignored
+
+   A match runner supplying it got nothing, and the division assumed 30.
+
+2. **The stop condition belonged to White, always.**
+
+       int64_t allotted = limits_.time[0];      // index 0 == WHITE
+
+   `check_time()` read slot 0 of the time array no matter who was on move, so
+   Black's searches were governed by the time remaining to *White*. In a match that
+   is not a rounding error: one side effectively thinks while the other races its
+   flag.
+
+Verified after the fix by searching the same position with the side to move
+swapped and the clocks identical:
+
+    White to move    243 ms   depth 5
+    Black to move    201 ms   depth 5
+
+Comparable, no systematic asymmetry. The budget is now computed for the side to
+move and handed to the search as a single `timeLimit_`, rather than re-derived from
+a shared array at a fixed index. `movestogo` is honoured, and where a GUI supplies
+none, the move count is estimated from the non-pawn material on the board instead
+of assumed.
+
+### The lesson, which by now I have learned four times
+
+Three earlier entries record the same mistake in different clothes: a hand-typed
+FEN, a stale binary tested after a failed link, a "sign wrong" verdict on a test
+whose own expectation was wrong. Each time the engine was right and I was wrong,
+and each time the tell was identical - **a cheap tool that answered the question
+existed, and I answered from memory instead.** Reading the allocation code would
+have cost a minute and prevented a confidently wrong paragraph.
+
+The instruments on this project exist so that this failure has somewhere to go.
+Reaching for them reflexively is the part that is not yet automatic.
+---
+
+## The first strength measurement
+
+Correctness is not strength. Everything above establishes that Aurora enumerates
+the right tree, scores it symmetrically and searches it without inventing values.
+None of that says it can play chess. So a match was finally run.
+
+    Aurora vs Stockfish 19, 20 games, 10+0.1, alternating colours
+    Result: 0 wins, 8 losses, 1 draw in the 9 games that completed
+    Score: 5.6%
+
+Every loss was by checkmate, on moves 22-34. Aurora is losing roughly 1200-1600
+Elo. That is the number, and it is the first honest one.
+
+Two things about how it was arrived at matter more than the number.
+
+**The harness destroyed its own result.** The run died at game 10 with
+`OSError: Invalid argument` on a write to a dead pipe. One process per side was
+reused across all twenty games, so a single engine exit ended the match and every
+remaining game was lost - and a match that stops early looks exactly like a match
+that was won. Engines now respawn when dead, broken pipes become a typed
+`EngineError`, and a failed `newgame` gets one fresh-process retry. A dead engine
+is a harness problem and is never scored as a draw. This was the second time the
+harness had to be fixed before a single game could be measured, and the first
+time it failed *silently in the direction of flattery*.
+
+**Mate and stalemate are opposite results and the protocol cannot tell them
+apart.** Both engines report "no legal move" at the end of a game. `play_game` had
+`pass` stubs where adjudication should have been, and so invented a draw whenever a
+game ended. Rather than reimplement position tracking in the match runner - the
+duplication that had already bitten this project twice - the engine answers it
+directly:
+
+    aurora terminal [moves...]   ->   ok | mate | stalemate
+
+From then on every game ended with a real verdict: "checkmate on move 25", not a
+draw.
+
+### The next measurement, and its discipline
+
+Speculative pruning is the obvious thing to turn on: with it all disabled,
+`go depth 10` takes about ten minutes, against 164ms at depth 8 when LMR was
+enabled. Speed is now the dominant limit on strength.
+
+But "it is standard and it is faster" is exactly the reasoning that put an
+inverted ProbCut window in the search. So the order is fixed and unglamorous:
+
+1. `tools/scores.py` must pass **with the feature on** - scores stable across
+   depth, in positions that cannot be won or lost. Result: 8/8 pass.
+2. Then a match, same seed and same openings, pruning off versus pruning on, and
+   the feature is kept only if it wins games.
+
+`SPECULATIVE_PRUNING` is now overridable at build time so that step 2 is a compile
+flag and not a source edit, and the A/B binary is built under a different name so
+a running match is never disturbed mid-measurement.
 
 ## The search: aspiration windows were preventing measurement
 

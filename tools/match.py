@@ -114,29 +114,46 @@ class Engine:
         self.path = path
         self.name = name
         self.skill = skill
-        cwd = cwd or str(Path(path).parent)
+        self.extra_options = list(extra_options or [])
+        self.cwd = cwd or str(Path(path).parent)
+        self.position_moves: list[str] = []
+        self.proc: subprocess.Popen = None  # type: ignore[assignment]
+        self._spawn()
+
+    def _spawn(self) -> None:
+        """Start the engine process and complete the UCI handshake."""
         self.proc = subprocess.Popen(
-            [path],
+            [self.path],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, bufsize=1, cwd=cwd,
+            text=True, bufsize=1, cwd=self.cwd,
         )
         self._send("uci")
         self._expect("uciok")
-        for opt in (extra_options or []):
+        for opt in self.extra_options:
             self._send(f"setoption name {opt}")
-        if skill is not None:
-            self._send(f"setoption name Skill Level value {skill}")
+        if self.skill is not None:
+            self._send(f"setoption name Skill Level value {self.skill}")
         self._send("isready")
         self._expect("readyok")
         self._send("ucinewgame")
-        self.position_moves: list[str] = []
         self._send("isready")
         self._expect("readyok")
 
+    def alive(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
     def _send(self, line: str) -> None:
-        assert self.proc.stdin is not None
-        self.proc.stdin.write(line + "\n")
-        self.proc.stdin.flush()
+        if self.proc is None or self.proc.stdin is None:
+            raise EngineError(f"{self.name}: no process")
+        try:
+            self.proc.stdin.write(line + "\n")
+            self.proc.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError) as exc:
+            # The engine died between games. This used to propagate straight out
+            # of the next game's ucinewgame and take the whole match down with an
+            # OSError, losing every remaining game - which is exactly what
+            # happened at game 10 of the first baseline run.
+            raise EngineError(f"{self.name}: pipe closed ({exc})") from exc
 
     def _readline(self) -> str:
         assert self.proc.stdout is not None
@@ -153,6 +170,15 @@ class Engine:
         raise EngineError(f"{self.name}: timeout waiting for {token!r}")
 
     def newgame(self) -> None:
+        """Begin a new game, respawning first if the engine has died.
+
+        A long match reuses one process per side for speed. That is fine until an
+        engine exits - by crash, by being closed at the end of a game, or by
+        simply falling over - and then the harness dies on a broken pipe and the
+        remaining games are lost. Losing a match to a dead pipe is not a result.
+        """
+        if not self.alive():
+            self._spawn()
         self.position_moves = []
         self._send("ucinewgame")
         self._send("isready")
@@ -306,6 +332,46 @@ class GameResult:
     plies: int
     reason: str
     moves: list[str] = field(default_factory=list)
+    opening: str = ""
+
+
+def pgn_text(res: GameResult, white_name: str, black_name: str,
+             time_control: str) -> str:
+    """Render a game as PGN.
+
+    A match that only produces a score tells you that you lost and nothing about
+    why. Every loss here has been by checkmate around move 22-34, which is a
+    pattern worth reading rather than counting, and you cannot read it without
+    the moves.
+    """
+    tags = [
+        ("Event", "Aurora match"),
+        ("Site", "local"),
+        ("Date", "????.??.??"),
+        ("Round", "?"),
+        ("White", white_name),
+        ("Black", black_name),
+        ("Result", res.result),
+    ]
+    if res.opening:
+        tags.append(("Opening", res.opening.split("moves")[0].strip() or "?"))
+    tags.append(("Termination", res.reason))
+    tags.append(("TimeControl", time_control))
+    head = "".join(f'[{k} "{v}"]\n' for k, v in tags)
+    body: list[str] = []
+    for i, mv in enumerate(res.moves):
+        if i % 2 == 0:
+            body.append(f"{i // 2 + 1}.")
+        body.append(mv)
+    line = ""
+    for tok in body:
+        if len(line) + len(tok) + 1 > 79:
+            head += line + "\n"
+            line = ""
+        line += tok + " "
+    if line:
+        head += line + "\n"
+    return head + f"{res.result}\n"
 
 
 def terminal_state(moves: list[str], aurora: str) -> str:
@@ -331,7 +397,14 @@ def play_game(white: Engine, black: Engine, opening: str, base_ms: int,
     book_moves = opening.split("moves")[1].split() if "moves" in opening else []
 
     for e in (white, black):
-        e.newgame()
+        try:
+            e.newgame()
+        except EngineError:
+            # One more attempt with a guaranteed-fresh process before giving up
+            # on the game. An engine that died between games is a harness
+            # problem, not a result, and must never be scored as a draw.
+            e._spawn()
+            e.newgame()
         e.position_moves = list(book_moves)
 
     history: list[str] = []
@@ -423,6 +496,8 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=12345)
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--out", default=None, help="write a JSON summary here")
+    ap.add_argument("--pgn", default=None,
+                    help="write every game as PGN here, for analysis afterwards")
     args = ap.parse_args()
 
     if not Path(args.aurora).exists():
@@ -469,6 +544,8 @@ def main() -> int:
 
         res = play_game(white, black, opening, base_ms, inc_ms,
                         args.depth, args.nodes, args.movetime, args.verbose)
+        res.opening = opening
+        pgn_lines.append(pgn_text(res, white.name, black.name, args.tc))
 
         if res.result == "1/2-1/2":
             draws += 1
@@ -521,6 +598,10 @@ def main() -> int:
             "score": score, "elo_diff": ed, "elo_stderr": es,
             "verdict": verdict, "elapsed_s": elapsed,
         }, indent=2))
+
+    if args.pgn:
+        Path(args.pgn).write_text("\n".join(pgn_lines))
+        print(f"games written to {args.pgn}")
 
     aurora.close()
     opp.close()

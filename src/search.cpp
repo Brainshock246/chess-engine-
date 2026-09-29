@@ -70,8 +70,19 @@ constexpr int CHECK_EXT_MAX_DEPTH = 12;
 // alpha-beta with a transposition table, quiescence and history, which is
 // verifiable, and each speculative feature is re-enabled one at a time with a
 // game-based measurement behind it - not on the strength of being standard.
+//
+// Overridable at build time so that enabling it is a flag and not a source edit:
+//
+//   g++ ... -DAURORA_SPEC_PRUNING            (all speculative pruning on)
+//   g++ ... -DAURORA_SPEC_PRUNING=0          (the verified baseline)
+//
+// A feature stays off until tools/scores.py and tools/tactics.py both pass *with
+// it on* and a match says it wins games. Correctness first, then speed.
 // ---------------------------------------------------------------------------
-constexpr bool SPECULATIVE_PRUNING = false;
+#ifndef AURORA_SPEC_PRUNING
+#define AURORA_SPEC_PRUNING false
+#endif
+constexpr bool SPECULATIVE_PRUNING = AURORA_SPEC_PRUNING;
 
 // Trust a transposition-table *value* enough to return it as a search result.
 // The stored move is still used for ordering; only the value is withheld.

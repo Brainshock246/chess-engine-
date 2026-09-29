@@ -69,9 +69,17 @@ CASES = [
      "4k3/8/8/8/8/8/8/3RK3 w - - 0 1", +1, 2000,
      "K+R against K is winning, so the sign must stay positive."),
 
-    ("unreachable stalemate bait",
-     "7k/8/8/8/8/8/6q1/7K w - - 0 1", +1, 2000,
-     "White is up a queen; Black has a queen and must not outscore it."),
+    # Corrected. This case asserted sign +1 on the grounds that "White is up a
+    # queen", and it is not: the queen on g2 is Black's. Worse for the assertion,
+    # the white king on h1 attacks g2, so 1.Kxg2 wins the queen outright and the
+    # material ends level - which is why a score near zero is the right answer
+    # and a large one would be the bug. A test whose expected value I got wrong
+    # produced a FAIL that meant nothing; that has happened twice on this project.
+    ("queen en prise to the king",
+     "7k/8/8/8/8/8/6q1/7K w - - 0 1", 0, 200,
+     "Kxg2 wins Black's queen and the material ends level, so the score must "
+     "stay near zero. A large negative score would mean the engine missed the "
+     "capture."),
 ]
 
 

@@ -117,17 +117,20 @@ killers and history.
 | UCI | working — `position` (fen / startpos / moves), `go`, `bestmove` |
 | evaluation | symmetric, sane magnitudes, audited per section |
 | search | scores stable across depth; no sign inversions; converges |
-| tactics | `tools/tactics.py` — the suite that caught the search bug |
-| strength | **unmeasured** |
+| tactics | `tools/tactics.py` 7 passed / 0 failed; `tools/scores.py` passes |
+| time management | fixed — `movestogo` honoured, budget computed for the side to move, verified colour-symmetric (243ms vs 201ms on the same position) |
+| git | repo initialised, first commit `114f98e` |
+| strength | **unmeasured** — baseline match running |
 
 ## Next
 
-1. **Baseline match vs Stockfish 19.** `tools/match.py` is ready (SPRT, opening
-   book, adjudication). This is the first honest number and everything after it is
-   measured against it.
+1. **Baseline match vs Stockfish 19** — running, 20 games at 10+0.1. This is the
+   first honest number and everything after it is measured against it.
 2. **Re-enable each speculative feature one at a time**, keeping only those that
-   improve games. Speed now, correctness first.
+   improve games. Note the cost of having them all off: `go depth 10` takes ~10
+   minutes, against 164ms at depth 8 when LMR was on. Speed is the next real
+   problem, and it must be bought back with games rather than with optimism.
 3. **Measure NOISE and SPARK individually.** They are implemented, isolated and
    currently at defaults nobody has justified. `tools/evalsym.py` plus `match.py`
    give the A/B.
-4. **Publish.** `git init`, then GitHub — `gh` is not installed.
+4. **Publish.** Repo exists; `gh` is not installed and needs setting up.
