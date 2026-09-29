@@ -3,6 +3,12 @@
 A chess engine written from scratch in C++20, built to play continuous games
 against Stockfish and to be measured honestly against it.
 
+> The project is **Chess Engine**. The binary it builds is still called
+> `aurora.exe` — that was its working name, and renaming the binary and the C++
+> namespace would have churned the verified tooling for no functional gain. The
+> commands below are therefore `aurora …`. The engine reports itself as
+> `id name Chess Engine 1.0`.
+
 ## Status
 
 | stage | state |
